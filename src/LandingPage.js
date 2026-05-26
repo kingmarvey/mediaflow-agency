@@ -54,16 +54,24 @@ const STYLES = `
     min-height: 100vh; display: flex; align-items: center;
     position: relative; padding: 130px 0 80px; overflow: hidden;
   }
+  .hero-video {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 0; pointer-events: none;
+  }
+  .hero-video-overlay {
+    position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(135deg, rgba(10,10,12,.88) 0%, rgba(10,10,12,.72) 50%, rgba(10,10,12,.88) 100%);
+  }
   .hero-grid {
-    position: absolute; inset: 0; z-index: 0;
+    position: absolute; inset: 0; z-index: 2;
     background-image: linear-gradient(rgba(224,92,39,.022) 1px, transparent 1px), linear-gradient(90deg, rgba(224,92,39,.022) 1px, transparent 1px);
     background-size: 64px 64px;
   }
   .hero-glow {
-    position: absolute; top: -260px; right: -260px; z-index: 0; width: 700px; height: 700px; border-radius: 50%;
+    position: absolute; top: -260px; right: -260px; z-index: 3; width: 700px; height: 700px; border-radius: 50%;
     background: radial-gradient(circle, rgba(224,92,39,.08) 0%, transparent 68%); pointer-events: none;
   }
-  .hero-content { position: relative; z-index: 1; max-width: 740px; }
+  .hero-content { position: relative; z-index: 4; max-width: 740px; }
   .hero-badge {
     display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
     background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.2);
@@ -420,6 +428,17 @@ function Hero({ navigate }) {
   return (
     <>
       <section className="hero" id="home">
+        {/* ↓ Replace the src URL with your own video file. Keep it short, looping, and ideally under 10 MB for performance. */}
+        <video
+          className="hero-video"
+          autoPlay
+          loop
+          muted
+          playsInline
+        >
+          <source src="https://cdn.coverr.co/videos/coverr-a-woman-working-on-a-creative-project-in-a-studio-3166/1080p.mp4" type="video/mp4" />
+        </video>
+        <div className="hero-video-overlay" />
         <div className="hero-grid" />
         <div className="hero-glow" />
         <div className="container">
