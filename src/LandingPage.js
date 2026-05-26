@@ -60,7 +60,7 @@ const STYLES = `
   }
   .hero-video-overlay {
     position: absolute; inset: 0; z-index: 1;
-    background: linear-gradient(135deg, rgba(10,10,12,.88) 0%, rgba(10,10,12,.72) 50%, rgba(10,10,12,.88) 100%);
+    background: linear-gradient(135deg, rgba(10,10,12,.78) 0%, rgba(10,10,12,.48) 50%, rgba(10,10,12,.78) 100%);
   }
   .hero-grid {
     position: absolute; inset: 0; z-index: 2;
@@ -436,7 +436,7 @@ function Hero({ navigate }) {
           muted
           playsInline
         >
-          <source src="https://cdn.coverr.co/videos/coverr-a-woman-working-on-a-creative-project-in-a-studio-3166/1080p.mp4" type="video/mp4" />
+          <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
         <div className="hero-video-overlay" />
         <div className="hero-grid" />
