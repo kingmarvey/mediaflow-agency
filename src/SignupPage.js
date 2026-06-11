@@ -119,16 +119,50 @@ const STYLES = `
   .auth-footer-text a { color: #E05C27; font-weight: 500; cursor: pointer; }
   .auth-footer-text a:hover { text-decoration: underline; }
 
-  /* Success screen */
-  .success-screen { text-align: center; padding: 16px 0; }
-  .success-icon {
-    width: 64px; height: 64px; background: rgba(224,92,39,.12); border: 1px solid rgba(224,92,39,.3);
+  /* Verify / success screens */
+  .center-screen { text-align: center; padding: 16px 0; }
+  .screen-icon {
+    width: 68px; height: 68px; background: rgba(224,92,39,.1); border: 1px solid rgba(224,92,39,.25);
     border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 28px; margin: 0 auto 24px;
+    font-size: 30px; margin: 0 auto 24px;
   }
-  .success-h { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: #F8F8F2; margin-bottom: 10px; }
-  .success-p { font-size: 14px; font-weight: 400; color: #8A8A96; line-height: 1.7; max-width: 320px; margin: 0 auto 28px; }
-  .success-email-highlight { color: #E05C27; font-weight: 600; }
+  .screen-h { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: #F8F8F2; margin-bottom: 10px; }
+  .screen-p { font-size: 14px; font-weight: 400; color: #8A8A96; line-height: 1.7; max-width: 340px; margin: 0 auto 28px; }
+  .email-highlight { color: #E05C27; font-weight: 600; }
+  .resend-text { font-size: 12px; color: #4A4A55; margin-top: 16px; }
+  .resend-text span { color: #E05C27; cursor: pointer; }
+  .resend-text span:hover { text-decoration: underline; }
+
+  /* Dashboard placeholder */
+  .dash-welcome { padding: 8px 0 4px; }
+  .dash-brand-tag {
+    display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px;
+    background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.2);
+    font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    color: #E05C27; margin-bottom: 20px;
+  }
+  .dash-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: #E05C27; }
+  .dash-headline { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #F8F8F2; letter-spacing: -.5px; margin-bottom: 8px; }
+  .dash-sub { font-size: 13px; font-weight: 400; color: #8A8A96; line-height: 1.7; margin-bottom: 32px; max-width: 380px; }
+  .dash-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px; }
+  .dash-card {
+    background: #0A0A0C; border: 1px solid #1E1E24; padding: 18px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .dash-card-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #4A4A55; }
+  .dash-card-val { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: #F8F8F2; }
+  .dash-card-sub { font-size: 11px; font-weight: 400; color: #6A6A76; }
+  .dash-divider { height: 1px; background: #1E1E24; margin-bottom: 24px; }
+  .dash-services-label { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #6A6A76; margin-bottom: 10px; }
+  .dash-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .dash-pill { padding: 4px 12px; border: 1px solid rgba(224,92,39,.25); background: rgba(224,92,39,.06); font-size: 11px; font-weight: 500; color: #E05C27; border-radius: 100px; }
+  .dash-coming-soon {
+    padding: 16px 18px; border: 1px dashed #2A2A34;
+    display: flex; align-items: center; gap: 14px; margin-bottom: 24px;
+  }
+  .dash-cs-icon { font-size: 22px; flex-shrink: 0; }
+  .dash-cs-title { font-size: 13px; font-weight: 600; color: #F8F8F2; margin-bottom: 3px; }
+  .dash-cs-sub { font-size: 12px; font-weight: 400; color: #6A6A76; }
 
   .back-btn {
     position: fixed; top: 24px; left: 28px; z-index: 10;
@@ -141,6 +175,7 @@ const STYLES = `
   @media (max-width: 560px) {
     .signup-card { padding: 32px 24px; }
     .form-row-2 { grid-template-columns: 1fr; }
+    .dash-cards { grid-template-columns: 1fr; }
   }
 `;
 
@@ -165,22 +200,30 @@ const INDUSTRIES = [
   "Entertainment", "Education", "Professional Services", "Other",
 ];
 
+// step 1 = brand info
+// step 2 = services
+// step 3 = agreement
+// step 4 = email verification (non-Google only)
+// step 5 = set password (non-Google only)
+// step 6 = dashboard
+function progressInfo(step) {
+  if (step === 1) return { active: 1, done: 0 };
+  if (step === 2) return { active: 2, done: 1 };
+  if (step === 3) return { active: 3, done: 2 };
+  if (step === 4) return { active: null, done: 3 }; // after agreement, before password
+  if (step === 5) return { active: 4, done: 3 };
+  return { active: null, done: 4 };
+}
+
 export default function SignupPage({ navigate }) {
   const [step, setStep] = useState(1);
   const [isGoogle, setIsGoogle] = useState(false);
 
-  // Step 1 — brand info
   const [brand, setBrand] = useState({
     brandName: "", industry: "", adminName: "", email: "", website: "",
   });
-
-  // Step 2 — services
   const [selectedServices, setSelectedServices] = useState([]);
-
-  // Step 3 — agreement
   const [agreed, setAgreed] = useState(false);
-
-  // Step 4 — password
   const [password, setPassword] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -206,22 +249,25 @@ export default function SignupPage({ navigate }) {
     setStep(2);
   };
 
-  const handleStep3Submit = () => {
-    if (isGoogle) {
-      setStep(5);
-    } else {
-      setStep(4);
-    }
+  // After agreement: Google → dashboard, others → verify email
+  const handleStep3Submit = () => setStep(isGoogle ? 6 : 4);
+
+  const handleBack = () => {
+    if (step === 1) navigate("home");
+    else if (step === 4) setStep(3);
+    else if (step === 5) setStep(4);
+    else setStep(s => s - 1);
   };
 
-  const steps = [1, 2, 3, 4];
-  const displayStep = isGoogle && step === 5 ? 4 : Math.min(step, 4);
+  const { active, done } = progressInfo(step);
+  const showProgress = step < 6;
+  const showBackBtn = step < 6;
 
   return (
     <>
       <style>{STYLES}</style>
-      {step < 5 && (
-        <button className="back-btn" onClick={() => step === 1 ? navigate("home") : setStep(s => s - 1)}>
+      {showBackBtn && (
+        <button className="back-btn" onClick={handleBack}>
           ← {step === 1 ? "Home" : "Back"}
         </button>
       )}
@@ -230,18 +276,17 @@ export default function SignupPage({ navigate }) {
         <div className="signup-card">
           <span className="auth-logo">MEDIA<span>FLOW</span></span>
 
-          {/* Progress */}
-          {step < 5 && (
+          {showProgress && (
             <div className="progress-bar">
-              {steps.map((s, i) => (
-                <>
-                  <div key={s} className={`progress-step${displayStep === s ? " active" : displayStep > s ? " done" : ""}`}>
-                    {displayStep > s ? "✓" : s}
+              {[1, 2, 3, 4].map((s, i) => (
+                <div key={s} style={{ display: "contents" }}>
+                  <div className={`progress-step${active === s ? " active" : s <= done ? " done" : ""}`}>
+                    {s <= done ? "✓" : s}
                   </div>
-                  {i < steps.length - 1 && (
-                    <div key={`line-${s}`} className={`progress-line${displayStep > s ? " done" : ""}`} />
+                  {i < 3 && (
+                    <div className={`progress-line${s <= done ? " done" : ""}`} />
                   )}
-                </>
+                </div>
               ))}
             </div>
           )}
@@ -330,12 +375,12 @@ export default function SignupPage({ navigate }) {
           {step === 3 && (
             <>
               <h2 className="step-title">Almost there</h2>
-              <p className="step-sub">Review and agree to our terms before creating your account.</p>
+              <p className="step-sub">Review your details and agree before we create your account.</p>
 
               <div style={{ background: "#0A0A0C", border: "1px solid #1E1E24", padding: "18px", marginBottom: "20px" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#F8F8F2", marginBottom: 8 }}>{brand.brandName}</div>
-                <div style={{ fontSize: 12, color: "#6A6A76", marginBottom: 4 }}>{brand.email}</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#F8F8F2", marginBottom: 4 }}>{brand.brandName}</div>
+                <div style={{ fontSize: 12, color: "#6A6A76", marginBottom: 10 }}>{brand.email}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {selectedServices.map(s => (
                     <span key={s} style={{ padding: "3px 10px", border: "1px solid #2A2A34", fontSize: 11, color: "#8A8A96" }}>{s}</span>
                   ))}
@@ -364,8 +409,28 @@ export default function SignupPage({ navigate }) {
             </>
           )}
 
-          {/* ── Step 4: Set Password (non-Google only) ── */}
+          {/* ── Step 4: Email Verification ── */}
           {step === 4 && (
+            <div className="center-screen">
+              <div className="screen-icon">✉️</div>
+              <h2 className="screen-h">Verify your email</h2>
+              <p className="screen-p">
+                We've sent a verification link to{" "}
+                <span className="email-highlight">{brand.email}</span>.
+                Open it to continue setting up your account.
+              </p>
+              <button className="auth-btn" style={{ maxWidth: 300, margin: "0 auto" }} onClick={() => setStep(5)}>
+                I've verified my email →
+              </button>
+              <p className="resend-text">
+                Didn't receive it? Check spam or{" "}
+                <span onClick={() => {}}>resend the email</span>
+              </p>
+            </div>
+          )}
+
+          {/* ── Step 5: Set Password ── */}
+          {step === 5 && (
             <>
               <h2 className="step-title">Set your password</h2>
               <p className="step-sub">Choose a strong password to secure your account.</p>
@@ -400,33 +465,60 @@ export default function SignupPage({ navigate }) {
                   )}
                 </div>
 
-                <button className="auth-btn" disabled={!passValid} onClick={() => setStep(5)}>
+                <button className="auth-btn" disabled={!passValid} onClick={() => setStep(6)}>
                   Complete Setup →
                 </button>
               </div>
               <div style={{ marginTop: 12 }}>
-                <span className="auth-back-link" onClick={() => setStep(3)}>← Back</span>
+                <span className="auth-back-link" onClick={() => setStep(4)}>← Back</span>
               </div>
             </>
           )}
 
-          {/* ── Step 5: Email Sent ── */}
-          {step === 5 && (
-            <div className="success-screen">
-              <div className="success-icon">✉️</div>
-              <h2 className="success-h">Check your inbox</h2>
-              <p className="success-p">
-                We've sent a verification link to{" "}
-                <span className="success-email-highlight">{brand.email}</span>.
-                Click the link to activate your account.
+          {/* ── Step 6: Dashboard ── */}
+          {step === 6 && (
+            <div className="dash-welcome">
+              <div className="dash-brand-tag">
+                <span className="dash-tag-dot" /> Account Active
+              </div>
+              <h2 className="dash-headline">Welcome, {brand.brandName || "there"}.</h2>
+              <p className="dash-sub">
+                Your MediaFlow account is ready. Your dedicated team will be in touch within 24 hours.
               </p>
-              <button className="auth-btn" style={{ maxWidth: 280, margin: "0 auto" }} onClick={() => navigate("login")}>
+
+              <div className="dash-cards">
+                <div className="dash-card">
+                  <span className="dash-card-label">Services Selected</span>
+                  <span className="dash-card-val">{selectedServices.length}</span>
+                  <span className="dash-card-sub">Active services</span>
+                </div>
+                <div className="dash-card">
+                  <span className="dash-card-label">Account Status</span>
+                  <span className="dash-card-val" style={{ fontSize: 16, paddingTop: 4, color: "#E05C27" }}>Active</span>
+                  <span className="dash-card-sub">Onboarding in progress</span>
+                </div>
+              </div>
+
+              <div className="dash-divider" />
+
+              <p className="dash-services-label">Your selected services</p>
+              <div className="dash-pills">
+                {selectedServices.map(s => (
+                  <span key={s} className="dash-pill">{s}</span>
+                ))}
+              </div>
+
+              <div className="dash-coming-soon">
+                <span className="dash-cs-icon">🚀</span>
+                <div>
+                  <div className="dash-cs-title">Full dashboard coming soon</div>
+                  <div className="dash-cs-sub">Analytics, content calendar, reports, and more.</div>
+                </div>
+              </div>
+
+              <button className="auth-btn" onClick={() => navigate("login")}>
                 Go to Login →
               </button>
-              <p style={{ fontSize: 12, color: "#4A4A55", marginTop: 16 }}>
-                Didn't receive it? Check your spam folder or{" "}
-                <span style={{ color: "#E05C27", cursor: "pointer" }} onClick={() => setStep(5)}>resend email</span>
-              </p>
             </div>
           )}
         </div>
