@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { auth, googleProvider, isFirebaseReady } from "./firebase";
 
 const STYLES = `
   .auth-page {
@@ -34,6 +40,7 @@ const STYLES = `
     transition: background .2s, box-shadow .2s; margin-bottom: 24px;
   }
   .google-btn:hover { background: #F8F8F8; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .google-btn:disabled { opacity: .6; cursor: not-allowed; }
 
   .auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
   .auth-divider-line { flex: 1; height: 1px; background: #1E1E24; }
@@ -55,7 +62,10 @@ const STYLES = `
     background: none; border: none; color: #6A6A76; font-size: 16px; padding: 2px; transition: color .2s;
   }
   .eye-btn:hover { color: #F8F8F2; }
-  .forgot-link { font-size: 12px; font-weight: 500; color: #E05C27; cursor: pointer; align-self: flex-end; margin-top: -6px; }
+  .forgot-link {
+    font-size: 12px; font-weight: 500; color: #E05C27; cursor: pointer;
+    align-self: flex-end; margin-top: -6px; background: none; border: none; padding: 0;
+  }
   .forgot-link:hover { text-decoration: underline; }
 
   .auth-btn {
@@ -64,6 +74,19 @@ const STYLES = `
   }
   .auth-btn:hover { background: #F0723A; }
   .auth-btn:disabled { background: #2A2A34; color: #6A6A76; cursor: not-allowed; }
+
+  .auth-error {
+    padding: 10px 14px; background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.22);
+    font-size: 13px; color: #E05C27; line-height: 1.5;
+  }
+  .auth-success {
+    padding: 10px 14px; background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.22);
+    font-size: 13px; color: #34d399; line-height: 1.5;
+  }
+  .not-configured {
+    padding: 11px 14px; background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.22);
+    font-size: 13px; color: #E05C27; line-height: 1.6; margin-bottom: 20px;
+  }
 
   .auth-footer-text { font-size: 12px; font-weight: 400; color: #6A6A76; text-align: center; margin-top: 20px; }
   .auth-footer-text a { color: #E05C27; font-weight: 500; cursor: pointer; }
@@ -91,29 +114,84 @@ const GoogleIcon = () => (
   </svg>
 );
 
+function firebaseError(code) {
+  const map = {
+    "auth/user-not-found": "No account found with this email.",
+    "auth/wrong-password": "Incorrect password. Please try again.",
+    "auth/invalid-credential": "Incorrect email or password.",
+    "auth/invalid-email": "Please enter a valid email address.",
+    "auth/too-many-requests": "Too many failed attempts. Please try again later or reset your password.",
+    "auth/popup-closed-by-user": "Sign-in popup was closed. Please try again.",
+    "auth/popup-blocked": "Popup was blocked. Please allow popups for this site.",
+    "auth/network-request-failed": "Network error. Check your internet connection.",
+    "auth/account-exists-with-different-credential": "An account already exists with this email using a different sign-in method.",
+  };
+  return map[code] || "Something went wrong. Please try again.";
+}
+
 export default function LoginPage({ navigate }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const valid = email.trim() && password.length >= 6;
 
-  const handleSubmit = e => {
+  const handleSubmit = async e => {
     e.preventDefault();
-    if (!valid) return;
+    if (!valid || !isFirebaseReady) return;
     setLoading(true);
     setError("");
-    setTimeout(() => {
+    setSuccessMsg("");
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      if (!result.user.emailVerified) {
+        await auth.signOut();
+        setError("Please verify your email before signing in. Check your inbox for the verification link.");
+        return;
+      }
+      navigate("dashboard");
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
       setLoading(false);
-      setError("Invalid email or password. Please try again.");
-    }, 1200);
+    }
   };
 
-  const handleGoogle = () => {
+  const handleGoogle = async () => {
+    if (!isFirebaseReady) return;
     setLoading(true);
-    setTimeout(() => setLoading(false), 1000);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await signInWithPopup(auth, googleProvider);
+      navigate("dashboard");
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError("Enter your email address above first, then click Forgot password.");
+      return;
+    }
+    if (!isFirebaseReady) return;
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccessMsg("Password reset email sent — check your inbox.");
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -131,7 +209,13 @@ export default function LoginPage({ navigate }) {
             <a onClick={() => navigate("signup")}>Create an account</a>
           </p>
 
-          <button className="google-btn" onClick={handleGoogle} disabled={loading}>
+          {!isFirebaseReady && (
+            <div className="not-configured">
+              Firebase is not configured yet. Add your Firebase credentials to the <strong>.env</strong> file to enable login.
+            </div>
+          )}
+
+          <button className="google-btn" onClick={handleGoogle} disabled={loading || !isFirebaseReady}>
             <GoogleIcon />
             Continue with Google
           </button>
@@ -166,16 +250,16 @@ export default function LoginPage({ navigate }) {
                 </button>
               </div>
             </div>
-            <span className="forgot-link">Forgot password?</span>
 
-            {error && (
-              <div style={{ padding: "10px 14px", background: "rgba(224,92,39,.08)", border: "1px solid rgba(224,92,39,.22)", fontSize: 13, color: "#E05C27" }}>
-                {error}
-              </div>
-            )}
+            <button type="button" className="forgot-link" onClick={handleForgotPassword} disabled={loading}>
+              Forgot password?
+            </button>
 
-            <button className="auth-btn" type="submit" disabled={!valid || loading}>
-              {loading ? "Signing in..." : "Sign In"}
+            {error && <div className="auth-error">{error}</div>}
+            {successMsg && <div className="auth-success">{successMsg}</div>}
+
+            <button className="auth-btn" type="submit" disabled={!valid || loading || !isFirebaseReady}>
+              {loading ? "Signing in…" : "Sign In"}
             </button>
           </form>
 

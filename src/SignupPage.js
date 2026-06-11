@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  updatePassword,
+  signInWithPopup,
+  reload,
+} from "firebase/auth";
+import { auth, googleProvider, isFirebaseReady } from "./firebase";
 
 const STYLES = `
   .auth-page {
@@ -42,6 +50,7 @@ const STYLES = `
     transition: background .2s, box-shadow .2s; margin-bottom: 20px;
   }
   .google-btn:hover { background: #F8F8F8; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .google-btn:disabled { opacity: .6; cursor: not-allowed; }
 
   .auth-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
   .auth-divider-line { flex: 1; height: 1px; background: #1E1E24; }
@@ -113,13 +122,19 @@ const STYLES = `
   .auth-btn:hover { background: #F0723A; }
   .auth-btn:disabled { background: #2A2A34; color: #6A6A76; cursor: not-allowed; }
 
+  /* Error */
+  .auth-error {
+    padding: 11px 14px; background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.22);
+    font-size: 13px; color: #E05C27; line-height: 1.5;
+  }
+
   .auth-back-link { font-size: 13px; font-weight: 500; color: #6A6A76; cursor: pointer; margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; transition: color .2s; }
   .auth-back-link:hover { color: #F8F8F2; }
   .auth-footer-text { font-size: 12px; font-weight: 400; color: #6A6A76; text-align: center; margin-top: 20px; }
   .auth-footer-text a { color: #E05C27; font-weight: 500; cursor: pointer; }
   .auth-footer-text a:hover { text-decoration: underline; }
 
-  /* Verify / success screens */
+  /* Verify / center screens */
   .center-screen { text-align: center; padding: 16px 0; }
   .screen-icon {
     width: 68px; height: 68px; background: rgba(224,92,39,.1); border: 1px solid rgba(224,92,39,.25);
@@ -130,39 +145,13 @@ const STYLES = `
   .screen-p { font-size: 14px; font-weight: 400; color: #8A8A96; line-height: 1.7; max-width: 340px; margin: 0 auto 28px; }
   .email-highlight { color: #E05C27; font-weight: 600; }
   .resend-text { font-size: 12px; color: #4A4A55; margin-top: 16px; }
-  .resend-text span { color: #E05C27; cursor: pointer; }
-  .resend-text span:hover { text-decoration: underline; }
+  .resend-text button { background: none; border: none; color: #E05C27; font-size: 12px; padding: 0; cursor: pointer; }
+  .resend-text button:hover { text-decoration: underline; }
 
-  /* Dashboard placeholder */
-  .dash-welcome { padding: 8px 0 4px; }
-  .dash-brand-tag {
-    display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px;
-    background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.2);
-    font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
-    color: #E05C27; margin-bottom: 20px;
+  .not-configured {
+    padding: 18px; background: rgba(224,92,39,.08); border: 1px solid rgba(224,92,39,.22);
+    font-size: 13px; color: #E05C27; line-height: 1.6; margin-bottom: 20px;
   }
-  .dash-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: #E05C27; }
-  .dash-headline { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #F8F8F2; letter-spacing: -.5px; margin-bottom: 8px; }
-  .dash-sub { font-size: 13px; font-weight: 400; color: #8A8A96; line-height: 1.7; margin-bottom: 32px; max-width: 380px; }
-  .dash-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px; }
-  .dash-card {
-    background: #0A0A0C; border: 1px solid #1E1E24; padding: 18px 16px;
-    display: flex; flex-direction: column; gap: 6px;
-  }
-  .dash-card-label { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #4A4A55; }
-  .dash-card-val { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: #F8F8F2; }
-  .dash-card-sub { font-size: 11px; font-weight: 400; color: #6A6A76; }
-  .dash-divider { height: 1px; background: #1E1E24; margin-bottom: 24px; }
-  .dash-services-label { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #6A6A76; margin-bottom: 10px; }
-  .dash-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
-  .dash-pill { padding: 4px 12px; border: 1px solid rgba(224,92,39,.25); background: rgba(224,92,39,.06); font-size: 11px; font-weight: 500; color: #E05C27; border-radius: 100px; }
-  .dash-coming-soon {
-    padding: 16px 18px; border: 1px dashed #2A2A34;
-    display: flex; align-items: center; gap: 14px; margin-bottom: 24px;
-  }
-  .dash-cs-icon { font-size: 22px; flex-shrink: 0; }
-  .dash-cs-title { font-size: 13px; font-weight: 600; color: #F8F8F2; margin-bottom: 3px; }
-  .dash-cs-sub { font-size: 12px; font-weight: 400; color: #6A6A76; }
 
   .back-btn {
     position: fixed; top: 24px; left: 28px; z-index: 10;
@@ -175,7 +164,6 @@ const STYLES = `
   @media (max-width: 560px) {
     .signup-card { padding: 32px 24px; }
     .form-row-2 { grid-template-columns: 1fr; }
-    .dash-cards { grid-template-columns: 1fr; }
   }
 `;
 
@@ -200,24 +188,36 @@ const INDUSTRIES = [
   "Entertainment", "Education", "Professional Services", "Other",
 ];
 
-// step 1 = brand info
-// step 2 = services
-// step 3 = agreement
-// step 4 = email verification (non-Google only)
-// step 5 = set password (non-Google only)
-// step 6 = dashboard
+function firebaseError(code) {
+  const map = {
+    "auth/email-already-in-use": "An account with this email already exists. Try logging in.",
+    "auth/invalid-email": "Please enter a valid email address.",
+    "auth/too-many-requests": "Too many attempts. Please try again in a few minutes.",
+    "auth/popup-closed-by-user": "Sign-in popup was closed. Please try again.",
+    "auth/popup-blocked": "Popup was blocked. Please allow popups for this site.",
+    "auth/requires-recent-login": "Session expired. Please refresh and try again.",
+    "auth/network-request-failed": "Network error. Check your internet connection.",
+    "auth/account-exists-with-different-credential": "An account already exists with this email using a different sign-in method.",
+  };
+  return map[code] || "Something went wrong. Please try again.";
+}
+
+// steps: 1=brand, 2=services, 3=agreement, 4=verify-email, 5=set-password
 function progressInfo(step) {
   if (step === 1) return { active: 1, done: 0 };
   if (step === 2) return { active: 2, done: 1 };
   if (step === 3) return { active: 3, done: 2 };
-  if (step === 4) return { active: null, done: 3 }; // after agreement, before password
-  if (step === 5) return { active: 4, done: 3 };
-  return { active: null, done: 4 };
+  if (step === 4) return { active: null, done: 3 };
+  return { active: 4, done: 3 };
 }
 
 export default function SignupPage({ navigate }) {
   const [step, setStep] = useState(1);
   const [isGoogle, setIsGoogle] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [tempPass] = useState(() => btoa(Math.random().toString(36)).slice(0, 14) + "Aa1!");
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [brand, setBrand] = useState({
     brandName: "", industry: "", adminName: "", email: "", website: "",
@@ -243,16 +243,119 @@ export default function SignupPage({ navigate }) {
   };
   const passValid = Object.values(passRules).every(Boolean) && password === confirmPass;
 
-  const handleGoogle = () => {
-    setIsGoogle(true);
-    setBrand(f => ({ ...f, adminName: "Your Name", email: "you@gmail.com", brandName: "Your Brand" }));
-    setStep(2);
+  const saveBrandToStorage = (extraServices) => {
+    localStorage.setItem("mf_brand", JSON.stringify({
+      ...brand,
+      services: extraServices || selectedServices,
+    }));
   };
 
-  // After agreement: Google → dashboard, others → verify email
-  const handleStep3Submit = () => setStep(isGoogle ? 6 : 4);
+  // Google sign-up
+  const handleGoogle = async () => {
+    if (!isFirebaseReady) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      setBrand(f => ({
+        ...f,
+        adminName: user.displayName || "",
+        email: user.email || "",
+        brandName: f.brandName || (user.displayName ? user.displayName.split(" ")[0] + "'s Brand" : ""),
+      }));
+      setIsGoogle(true);
+      setStep(2);
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // After T&C agreement
+  const handleCreateAccount = async () => {
+    if (!isFirebaseReady) return;
+    setLoading(true);
+    setError("");
+
+    if (isGoogle) {
+      saveBrandToStorage();
+      navigate("dashboard");
+      return;
+    }
+
+    try {
+      await createUserWithEmailAndPassword(auth, brand.email, tempPass);
+      await sendEmailVerification(auth.currentUser, {
+        url: window.location.origin,
+        handleCodeInApp: false,
+      });
+      saveBrandToStorage();
+      setStep(4);
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check if email is verified when user clicks "I've verified"
+  const handleCheckVerification = async () => {
+    if (!auth.currentUser) return;
+    setLoading(true);
+    setError("");
+    try {
+      await reload(auth.currentUser);
+      if (auth.currentUser.emailVerified) {
+        setStep(5);
+      } else {
+        setError("Your email hasn't been verified yet. Check your inbox and click the link, then try again.");
+      }
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Resend verification email
+  const handleResend = async () => {
+    if (resendCooldown > 0 || !auth.currentUser) return;
+    try {
+      await sendEmailVerification(auth.currentUser, {
+        url: window.location.origin,
+        handleCodeInApp: false,
+      });
+      setResendCooldown(60);
+      const timer = setInterval(() => {
+        setResendCooldown(v => {
+          if (v <= 1) { clearInterval(timer); return 0; }
+          return v - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setError(firebaseError(err.code));
+    }
+  };
+
+  // Set password after email verification
+  const handleSetPassword = async () => {
+    if (!auth.currentUser) return;
+    setLoading(true);
+    setError("");
+    try {
+      await updatePassword(auth.currentUser, password);
+      navigate("dashboard");
+    } catch (err) {
+      setError(firebaseError(err.code));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBack = () => {
+    setError("");
     if (step === 1) navigate("home");
     else if (step === 4) setStep(3);
     else if (step === 5) setStep(4);
@@ -260,34 +363,32 @@ export default function SignupPage({ navigate }) {
   };
 
   const { active, done } = progressInfo(step);
-  const showProgress = step < 6;
-  const showBackBtn = step < 6;
 
   return (
     <>
       <style>{STYLES}</style>
-      {showBackBtn && (
-        <button className="back-btn" onClick={handleBack}>
-          ← {step === 1 ? "Home" : "Back"}
-        </button>
-      )}
+      <button className="back-btn" onClick={handleBack}>
+        ← {step === 1 ? "Home" : "Back"}
+      </button>
       <div className="auth-page">
         <div className="auth-glow" />
         <div className="signup-card">
           <span className="auth-logo">MEDIA<span>FLOW</span></span>
 
-          {showProgress && (
-            <div className="progress-bar">
-              {[1, 2, 3, 4].map((s, i) => (
-                <div key={s} style={{ display: "contents" }}>
-                  <div className={`progress-step${active === s ? " active" : s <= done ? " done" : ""}`}>
-                    {s <= done ? "✓" : s}
-                  </div>
-                  {i < 3 && (
-                    <div className={`progress-line${s <= done ? " done" : ""}`} />
-                  )}
+          <div className="progress-bar">
+            {[1, 2, 3, 4].map((s, i) => (
+              <div key={s} style={{ display: "contents" }}>
+                <div className={`progress-step${active === s ? " active" : s <= done ? " done" : ""}`}>
+                  {s <= done ? "✓" : s}
                 </div>
-              ))}
+                {i < 3 && <div className={`progress-line${s <= done ? " done" : ""}`} />}
+              </div>
+            ))}
+          </div>
+
+          {!isFirebaseReady && (
+            <div className="not-configured">
+              Firebase is not configured yet. Fill in your <strong>.env</strong> file with your Firebase project credentials to enable real authentication.
             </div>
           )}
 
@@ -297,7 +398,7 @@ export default function SignupPage({ navigate }) {
               <h2 className="step-title">Tell us about your brand</h2>
               <p className="step-sub">We'll use this to personalise your experience.</p>
 
-              <button className="google-btn" onClick={handleGoogle}>
+              <button className="google-btn" onClick={handleGoogle} disabled={loading || !isFirebaseReady}>
                 <GoogleIcon /> Continue with Google
               </button>
               <div className="auth-divider">
@@ -334,7 +435,8 @@ export default function SignupPage({ navigate }) {
                   <label className="auth-label">Website <span style={{ color: "#4A4A55", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(optional)</span></label>
                   <input className="auth-input" placeholder="https://yourbrand.com" value={brand.website} onChange={setB("website")} />
                 </div>
-                <button className="auth-btn" disabled={!step1Valid} onClick={() => setStep(2)}>
+                {error && <div className="auth-error">{error}</div>}
+                <button className="auth-btn" disabled={!step1Valid || loading} onClick={() => { setError(""); setStep(2); }}>
                   Continue →
                 </button>
               </div>
@@ -362,7 +464,7 @@ export default function SignupPage({ navigate }) {
                   </button>
                 ))}
               </div>
-              <button className="auth-btn" style={{ marginTop: 24 }} disabled={!step2Valid} onClick={() => setStep(3)}>
+              <button className="auth-btn" style={{ marginTop: 24 }} disabled={!step2Valid} onClick={() => { setError(""); setStep(3); }}>
                 Continue →
               </button>
               <div style={{ marginTop: 12 }}>
@@ -388,10 +490,7 @@ export default function SignupPage({ navigate }) {
               </div>
 
               <label className="tc-label">
-                <input
-                  type="checkbox" className="tc-checkbox"
-                  checked={agreed} onChange={e => setAgreed(e.target.checked)}
-                />
+                <input type="checkbox" className="tc-checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} />
                 <span>
                   I agree to MediaFlow's{" "}
                   <a href="#" onClick={e => e.preventDefault()}>Terms of Service</a>
@@ -400,8 +499,10 @@ export default function SignupPage({ navigate }) {
                 </span>
               </label>
 
-              <button className="auth-btn" style={{ marginTop: 20 }} disabled={!agreed} onClick={handleStep3Submit}>
-                Create Account →
+              {error && <div className="auth-error" style={{ marginTop: 14 }}>{error}</div>}
+
+              <button className="auth-btn" style={{ marginTop: 20 }} disabled={!agreed || loading} onClick={handleCreateAccount}>
+                {loading ? "Creating account…" : "Create Account →"}
               </button>
               <div style={{ marginTop: 12 }}>
                 <span className="auth-back-link" onClick={() => setStep(2)}>← Back</span>
@@ -417,14 +518,25 @@ export default function SignupPage({ navigate }) {
               <p className="screen-p">
                 We've sent a verification link to{" "}
                 <span className="email-highlight">{brand.email}</span>.
-                Open it to continue setting up your account.
+                Open the email and click the link, then come back here to continue.
               </p>
-              <button className="auth-btn" style={{ maxWidth: 300, margin: "0 auto" }} onClick={() => setStep(5)}>
-                I've verified my email →
+
+              {error && <div className="auth-error" style={{ textAlign: "left", marginBottom: 16 }}>{error}</div>}
+
+              <button
+                className="auth-btn"
+                style={{ maxWidth: 320, margin: "0 auto" }}
+                onClick={handleCheckVerification}
+                disabled={loading}
+              >
+                {loading ? "Checking…" : "I've verified my email →"}
               </button>
-              <p className="resend-text">
+
+              <p className="resend-text" style={{ marginTop: 18 }}>
                 Didn't receive it? Check spam or{" "}
-                <span onClick={() => {}}>resend the email</span>
+                <button onClick={handleResend} disabled={resendCooldown > 0}>
+                  {resendCooldown > 0 ? `resend in ${resendCooldown}s` : "resend the email"}
+                </button>
               </p>
             </div>
           )}
@@ -433,7 +545,7 @@ export default function SignupPage({ navigate }) {
           {step === 5 && (
             <>
               <h2 className="step-title">Set your password</h2>
-              <p className="step-sub">Choose a strong password to secure your account.</p>
+              <p className="step-sub">Email verified! Now choose a strong password to secure your account.</p>
 
               <div className="signup-form">
                 <div className="auth-group">
@@ -465,61 +577,13 @@ export default function SignupPage({ navigate }) {
                   )}
                 </div>
 
-                <button className="auth-btn" disabled={!passValid} onClick={() => setStep(6)}>
-                  Complete Setup →
+                {error && <div className="auth-error">{error}</div>}
+
+                <button className="auth-btn" disabled={!passValid || loading} onClick={handleSetPassword}>
+                  {loading ? "Saving…" : "Complete Setup →"}
                 </button>
               </div>
-              <div style={{ marginTop: 12 }}>
-                <span className="auth-back-link" onClick={() => setStep(4)}>← Back</span>
-              </div>
             </>
-          )}
-
-          {/* ── Step 6: Dashboard ── */}
-          {step === 6 && (
-            <div className="dash-welcome">
-              <div className="dash-brand-tag">
-                <span className="dash-tag-dot" /> Account Active
-              </div>
-              <h2 className="dash-headline">Welcome, {brand.brandName || "there"}.</h2>
-              <p className="dash-sub">
-                Your MediaFlow account is ready. Your dedicated team will be in touch within 24 hours.
-              </p>
-
-              <div className="dash-cards">
-                <div className="dash-card">
-                  <span className="dash-card-label">Services Selected</span>
-                  <span className="dash-card-val">{selectedServices.length}</span>
-                  <span className="dash-card-sub">Active services</span>
-                </div>
-                <div className="dash-card">
-                  <span className="dash-card-label">Account Status</span>
-                  <span className="dash-card-val" style={{ fontSize: 16, paddingTop: 4, color: "#E05C27" }}>Active</span>
-                  <span className="dash-card-sub">Onboarding in progress</span>
-                </div>
-              </div>
-
-              <div className="dash-divider" />
-
-              <p className="dash-services-label">Your selected services</p>
-              <div className="dash-pills">
-                {selectedServices.map(s => (
-                  <span key={s} className="dash-pill">{s}</span>
-                ))}
-              </div>
-
-              <div className="dash-coming-soon">
-                <span className="dash-cs-icon">🚀</span>
-                <div>
-                  <div className="dash-cs-title">Full dashboard coming soon</div>
-                  <div className="dash-cs-sub">Analytics, content calendar, reports, and more.</div>
-                </div>
-              </div>
-
-              <button className="auth-btn" onClick={() => navigate("login")}>
-                Go to Login →
-              </button>
-            </div>
           )}
         </div>
       </div>
